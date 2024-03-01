@@ -1,10 +1,11 @@
-from requests import get
+import requests
 from bs4 import BeautifulSoup
 import csv
 
 
 def getSoupInstance(date):
-    response = get(f'https://www.yallakora.com/match-center/مركز-المباريات?date={date}#')
+    response = requests.get(f'https://www.yallakora.com/match-center/مركز-المباريات?date={date}#')
+    response.raise_for_status()
     src = response.content
     soup = BeautifulSoup(src, 'lxml')
 
@@ -55,12 +56,19 @@ def getMatchDetails(match, championshipName):
 
 
 def createCsvFile(date, matchesDetails, headers):
-    filename = f'matches-{date.replace("/", "-")}.csv'
+    filename = f'csv/matches-{date.replace("/", "-")}.csv'
     try:
-        with open(filename, 'w', newline='') as csvFile:
+        with open(filename, 'w', newline='', encoding='utf-8') as csvFile:
             writer = csv.DictWriter(csvFile, fieldnames=headers)
             writer.writeheader()
-            writer.writerows(matchesDetails)
+
+            if len(matchesDetails) == 0:
+                print('No matches found for the selected date.')
+                writer.writerow({'championshipName': 'No matches', 'channel': 'No matches', 'round': 'No matches', 'status': 'No matches', 'homeTeam': 'No matches', 'awayTeam': 'No matches', 'homeTeamScore': 'No matches', 'awayTeamScore': 'No matches', 'time': 'No matches', })
+            else:
+                writer.writerows(matchesDetails)
+
+            csvFile.close()
             print(f'File {filename} created successfully!')
     except FileNotFoundError:
         print(f"Error: Directory containing the file doesn't exist. Please create it manually.")
@@ -69,19 +77,35 @@ def createCsvFile(date, matchesDetails, headers):
 def main():
     matchesDetails = []
     championshipNames = []
+    resDate = ''
     headers = ['championshipName', 'channel', 'round', 'status', 'homeTeam', 'awayTeam', 'homeTeamScore', 'awayTeamScore', 'time']
     try:
-        date = input('Enter date in YYYY/MM/DD format: ')
+        date = input('Enter date in MM/DD/YYYY format: ')
+
+        if not date:
+            raise ValueError('Date cannot be empty')
+        if len(date.split('/')) != 3:
+            raise ValueError('Date must be in MM/DD/YYYY format')
+
         soup = getSoupInstance(date)
 
         matchesCenter = soup.find('section', {'class': 'matchesCenter'})
+
+        matchCenterDays = matchesCenter.find('div', {'class': 'matchCenterDays'})
+
+        resDate = matchCenterDays.find('button', {'class': 'active'})['date']
+
         championships = matchesCenter.find_all('div', {'class': 'matchesList'})
 
         championshipNames = getChampionshipNames(championships)
 
         matchesDetails = getMatchesDetails(championships, championshipNames)
 
-        createCsvFile(date, matchesDetails, headers)
+        createCsvFile(resDate, matchesDetails, headers)
+    except ValueError as e:
+        print(e)
+    except requests.exceptions.RequestException as e: 
+        print(e)
     except Exception as e:
         print(e)
 
