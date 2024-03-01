@@ -1,3 +1,4 @@
+import datetime
 from requests import get
 from bs4 import BeautifulSoup
 import csv
@@ -39,7 +40,9 @@ def getMatchDetails(match, championshipName):
     if matchDetails['channel'] is not None:
         matchDetails['channel'] = matchDetails['channel'].text.strip()
     topData = matchAllDataContainer.find('div', {'class': 'topData'})
-    matchDetails['date'] = topData.find('div', {'class': 'date'}).text.strip()
+
+
+    matchDetails['round'] = topData.find('div', {'class': 'date'}).text.strip()
     matchDetails['status'] = topData.find('div', {'class': 'matchStatus'}).text.strip()
     teamsData = matchAllDataContainer.find('div', {'class': 'teamCntnr'}).find('div', {'class': 'teamsData'})
     matchDetails['homeTeam'] = teamsData.find('div', {'class': 'teams teamA'}).find('p').text.strip()
@@ -52,9 +55,22 @@ def getMatchDetails(match, championshipName):
     return matchDetails
 
 
+def createCsvFile(date, matchesDetails, headers):
+    filename = f'matches-{date.replace("/", "-")}.csv'
+    try:
+        with open(filename, 'w', newline='') as csvFile:
+            writer = csv.DictWriter(csvFile, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(matchesDetails)
+            print(f'File {filename} created successfully!')
+    except FileNotFoundError:
+        print(f"Error: Directory containing the file doesn't exist. Please create it manually.")
+
+
 def main():
     matchesDetails = []
     championshipNames = []
+    headers = ['championshipName', 'channel', 'round', 'status', 'homeTeam', 'awayTeam', 'homeTeamScore', 'awayTeamScore', 'time']
     try:
         date = input('Enter date in YYYY/MM/DD format: ')
         soup = getSoupInstance(date)
@@ -66,6 +82,7 @@ def main():
 
         matchesDetails = getMatchesDetails(championships, championshipNames)
 
+        createCsvFile(date, matchesDetails, headers)
     except Exception as e:
         print(e)
 
